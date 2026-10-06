@@ -1,0 +1,1388 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Inventory Control</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      :root {
+        --bg: #09090b;
+        --panel: #111827;
+        --panel-alt: #1f2937;
+        --muted: #9ca3af;
+        --teal: #2dd4bf;
+        --cyan: #22d3ee;
+        --amber: #f59e0b;
+        --red: #ef4444;
+        --green: #22c55e;
+        --border: rgba(255,255,255,0.08);
+      }
+
+      html, body {
+        background: var(--bg);
+        color: #f3f4f6;
+        height: 100%;
+        overscroll-behavior: none;
+      }
+
+      body {
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      .safe-bottom {
+        padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+      }
+
+      .top-safe {
+        padding-top: calc(1rem + env(safe-area-inset-top));
+      }
+
+      .tab-panel {
+        display: none;
+      }
+
+      .tab-panel.active {
+        display: block;
+      }
+
+      .input {
+        background: rgba(17,24,39,0.9);
+        border: 1px solid var(--border);
+        color: #f3f4f6;
+        border-radius: 0.9rem;
+        padding: 0.8rem 0.9rem;
+        width: 100%;
+      }
+
+      .label {
+        display: block;
+        font-size: 0.72rem;
+        letter-spacing: 0.04em;
+        color: #9ca3af;
+        margin-bottom: 0.35rem;
+      }
+
+      .btn {
+        border-radius: 0.9rem;
+        padding: 0.8rem 1rem;
+        font-weight: 600;
+        transition: all 0.2s ease;
+      }
+
+      .btn-primary {
+        background: linear-gradient(135deg, #14b8a6, #0ea5e9);
+        color: white;
+      }
+
+      .btn-danger {
+        background: rgba(239, 68, 68, 0.12);
+        color: #fca5a5;
+        border: 1px solid rgba(239,68,68,0.28);
+      }
+
+      .btn-amber {
+        background: rgba(245, 158, 11, 0.12);
+        color: #fcd34d;
+        border: 1px solid rgba(245,158,11,0.28);
+      }
+
+      .btn-gray {
+        background: rgba(255,255,255,0.04);
+        color: #e5e7eb;
+        border: 1px solid var(--border);
+      }
+
+      .card {
+        background: rgba(17,24,39,0.82);
+        border: 1px solid var(--border);
+        border-radius: 1rem;
+        box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+      }
+
+      .bottom-nav {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 40;
+        background: rgba(9, 9, 11, 0.92);
+        border-top: 1px solid var(--border);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+      }
+
+      .nav-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.68rem;
+        color: #9ca3af;
+        gap: 0.2rem;
+        flex: 1;
+        padding: 0.6rem 0.2rem 0.8rem;
+      }
+
+      .nav-btn.active {
+        color: #d1fae5;
+      }
+
+      .nav-icon {
+        font-size: 1.05rem;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 9999px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        padding: 0.22rem 0.5rem;
+      }
+
+      .pill-success { background: rgba(34,197,94,0.12); color: #86efac; }
+      .pill-warning { background: rgba(245,158,11,0.12); color: #fcd34d; }
+      .pill-danger { background: rgba(239,68,68,0.12); color: #fca5a5; }
+
+      .tiny {
+        font-size: 0.7rem;
+      }
+
+      .hide {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body class="bg-[#09090b] text-slate-50">
+    <div class="top-safe"></div>
+
+    <header class="sticky top-0 z-20 border-b border-white/10 bg-[#09090b]/85 backdrop-blur-md">
+      <div class="px-4 py-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-[10px] uppercase tracking-[0.22em] text-teal-300/80">Inventory Control</p>
+            <h1 class="text-xl font-bold tracking-tight">Stock Custody</h1>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="exportBtn" class="btn btn-gray text-xs px-3 py-2">Export</button>
+            <button id="importBtn" class="btn btn-gray text-xs px-3 py-2">Import</button>
+          </div>
+        </div>
+
+        <div id="reminderBanner" class="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+          Daily reminder: back up your inventory before the end of shift.
+        </div>
+      </div>
+    </header>
+
+    <main class="px-4 pb-28 pt-4 safe-bottom">
+      <section id="catalogTab" class="tab-panel active">
+        <div class="card p-4">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold">Product Catalog</h2>
+            <span id="productCountBadge" class="badge pill-success">0</span>
+          </div>
+
+          <form id="productForm" class="space-y-3">
+            <input type="hidden" id="productId" />
+
+            <div>
+              <label class="label" for="productName">Item Name</label>
+              <input id="productName" class="input" placeholder="e.g. Chili Sauce" required />
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="label" for="productCategory">Category</label>
+                <select id="productCategory" class="input" required>
+                  <option value="Production">Production</option>
+                  <option value="Sauces">Sauces</option>
+                  <option value="Drinks">Drinks</option>
+                  <option value="Condiments">Condiments</option>
+                  <option value="Vegetables">Vegetables</option>
+                  <option value="Supplies">Supplies</option>
+                </select>
+              </div>
+              <div>
+                <label class="label" for="productSku">SKU / Barcode</label>
+                <input id="productSku" class="input" placeholder="SKU-001" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="label" for="productCost">Cost Price</label>
+                <input id="productCost" type="number" step="0.01" min="0" class="input" placeholder="0.00" required />
+              </div>
+              <div>
+                <label class="label" for="productSell">Selling Price</label>
+                <input id="productSell" type="number" step="0.01" min="0" class="input" placeholder="0.00" required />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="label" for="productStock">Current Stock</label>
+                <input id="productStock" type="number" step="1" min="0" class="input" placeholder="0" required />
+              </div>
+              <div>
+                <label class="label" for="productAlert">Low-stock Alert</label>
+                <input id="productAlert" type="number" step="1" min="0" class="input" placeholder="10" required />
+              </div>
+            </div>
+
+            <div>
+              <label class="label" for="productStaff">Recorded By</label>
+              <select id="productStaff" class="input" required></select>
+            </div>
+
+            <div class="flex gap-2">
+              <button type="submit" class="btn btn-primary flex-1">Save Product</button>
+              <button type="button" id="cancelEditBtn" class="btn btn-gray hidden flex-1">Cancel</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="mt-4 card p-3">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="font-medium">Catalog Items</h3>
+            <span class="tiny text-slate-400">Tap item to edit</span>
+          </div>
+          <div id="productList" class="space-y-2"></div>
+        </div>
+      </section>
+
+      <section id="inboundTab" class="tab-panel">
+        <div class="card p-4">
+          <h2 class="text-lg font-semibold mb-4">Inbound / Production</h2>
+
+          <form id="inboundForm" class="space-y-3">
+            <div>
+              <label class="label" for="inboundStaff">Staff Name</label>
+              <select id="inboundStaff" class="input" required></select>
+            </div>
+
+            <div>
+              <label class="label" for="inboundProduct">Product</label>
+              <select id="inboundProduct" class="input" required></select>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="label" for="inboundQty">Batch Yield</label>
+                <input id="inboundQty" type="number" min="1" step="1" class="input" placeholder="0" required />
+              </div>
+              <div>
+                <label class="label" for="inboundBatch">Batch No.</label>
+                <input id="inboundBatch" class="input" placeholder="BATCH-001" />
+              </div>
+            </div>
+
+            <div>
+              <label class="label" for="inboundExpiry">Expiry Date</label>
+              <input id="inboundExpiry" type="date" class="input" />
+            </div>
+
+            <button type="submit" class="btn btn-primary w-full">Add Stock</button>
+          </form>
+        </div>
+      </section>
+
+      <section id="outboundTab" class="tab-panel">
+        <div class="card p-4">
+          <h2 class="text-lg font-semibold mb-4">Outbound / Waste / Adjustment</h2>
+
+          <form id="outboundForm" class="space-y-3">
+            <div>
+              <label class="label" for="outboundStaff">Staff Name</label>
+              <select id="outboundStaff" class="input" required></select>
+            </div>
+
+            <div>
+              <label class="label" for="outboundProduct">Product</label>
+              <select id="outboundProduct" class="input" required></select>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="label" for="outboundQty">Quantity</label>
+                <input id="outboundQty" type="number" min="1" step="1" class="input" placeholder="0" required />
+              </div>
+              <div>
+                <label class="label" for="outboundReason">Reason</label>
+                <select id="outboundReason" class="input" required>
+                  <option value="Consumption">Consumption</option>
+                  <option value="Waste">Waste</option>
+                  <option value="Damage">Damage</option>
+                  <option value="Spoilage">Spoilage</option>
+                  <option value="Adjustment">Adjustment</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label class="label" for="outboundNote">Notes</label>
+              <textarea id="outboundNote" rows="3" class="input" placeholder="Describe reason, source, or issue..."></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-danger w-full">Reduce Stock</button>
+          </form>
+        </div>
+      </section>
+
+      <section id="countTab" class="tab-panel">
+        <div class="card p-4">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-semibold">Count & Control</h2>
+            <button id="recountBtn" class="btn btn-amber text-xs px-3 py-2">Refresh</button>
+          </div>
+
+          <div>
+            <label class="label" for="countStaff">Staff Name</label>
+            <select id="countStaff" class="input" required></select>
+          </div>
+
+          <div class="mt-4 space-y-2" id="countList"></div>
+
+          <div class="mt-4">
+            <button id="varianceBtn" class="btn btn-primary w-full">Generate Variance Report</button>
+          </div>
+
+          <div id="varianceReport" class="mt-4 hidden">
+            <h3 class="font-semibold mb-2">Variance Report</h3>
+            <div id="varianceContent" class="space-y-2"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="adminTab" class="tab-panel">
+        <div class="card p-4">
+          <h2 class="text-lg font-semibold mb-4">Staff Admin</h2>
+
+          <form id="staffForm" class="space-y-3">
+            <div>
+              <label class="label" for="staffName">New Staff Name</label>
+              <input id="staffName" class="input" placeholder="e.g. Clark" required />
+            </div>
+            <button type="submit" class="btn btn-primary w-full">Add Staff Member</button>
+          </form>
+
+          <div class="mt-5">
+            <h3 class="font-medium mb-2">Current Staff</h3>
+            <div id="staffList" class="space-y-2"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav">
+      <div class="flex">
+        <button class="nav-btn active" data-tab="catalogTab">
+          <span class="nav-icon">📦</span>
+          <span>Catalog</span>
+        </button>
+        <button class="nav-btn" data-tab="inboundTab">
+          <span class="nav-icon">📥</span>
+          <span>Inbound</span>
+        </button>
+        <button class="nav-btn" data-tab="outboundTab">
+          <span class="nav-icon">📤</span>
+          <span>Outbound</span>
+        </button>
+        <button class="nav-btn" data-tab="countTab">
+          <span class="nav-icon">🧮</span>
+          <span>Count</span>
+        </button>
+        <button class="nav-btn" data-tab="adminTab">
+          <span class="nav-icon">👥</span>
+          <span>Admin</span>
+        </button>
+      </div>
+    </nav>
+
+    <input id="fileInput" type="file" class="hidden" accept=".json,.bak,.enc" />
+
+    <script>
+      const DB_NAME = "inventory_control_db";
+      const DB_VERSION = 1;
+
+      const state = {
+        products: [],
+        staff: [],
+        logs: [],
+        activeTab: "catalogTab"
+      };
+
+      const PRODUCT_STORE = "products";
+      const STAFF_STORE = "staff";
+      const LOG_STORE = "logs";
+      const META_STORE = "meta";
+
+      document.addEventListener("DOMContentLoaded", async () => {
+        initUI();
+        await initDB();
+        await ensureDefaultStaff();
+        await loadAll();
+        renderAll();
+      });
+
+      function initUI() {
+        document.querySelectorAll(".nav-btn").forEach(button => {
+          button.addEventListener("click", () => {
+            const tab = button.dataset.tab;
+            setActiveTab(tab);
+          });
+        });
+
+        document.getElementById("productForm").addEventListener("submit", saveProduct);
+        document.getElementById("cancelEditBtn").addEventListener("click", resetProductForm);
+
+        document.getElementById("inboundForm").addEventListener("submit", handleInboundSubmit);
+        document.getElementById("outboundForm").addEventListener("submit", handleOutboundSubmit);
+
+        document.getElementById("varianceBtn").addEventListener("click", generateVarianceReport);
+        document.getElementById("recountBtn").addEventListener("click", renderCountTab);
+
+        document.getElementById("staffForm").addEventListener("submit", addStaff);
+        document.getElementById("exportBtn").addEventListener("click", exportBackup);
+        document.getElementById("importBtn").addEventListener("click", () => {
+          document.getElementById("fileInput").click();
+        });
+        document.getElementById("fileInput").addEventListener("change", handleImportBackup);
+
+        setActiveTab("catalogTab");
+      }
+
+      function setActiveTab(tabName) {
+        state.activeTab = tabName;
+        document.querySelectorAll(".tab-panel").forEach(panel => {
+          panel.classList.toggle("active", panel.id === tabName);
+        });
+        document.querySelectorAll(".nav-btn").forEach(btn => {
+          btn.classList.toggle("active", btn.dataset.tab === tabName);
+        });
+      }
+
+      async function initDB() {
+        return new Promise((resolve, reject) => {
+          const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+          request.onupgradeneeded = (event) => {
+            const db = event.target.result;
+            if (!db.objectStoreNames.contains(PRODUCT_STORE)) {
+              db.createObjectStore(PRODUCT_STORE, { keyPath: "id", autoIncrement: true });
+            }
+            if (!db.objectStoreNames.contains(STAFF_STORE)) {
+              db.createObjectStore(STAFF_STORE, { keyPath: "id", autoIncrement: true });
+            }
+            if (!db.objectStoreNames.contains(LOG_STORE)) {
+              db.createObjectStore(LOG_STORE, { keyPath: "id", autoIncrement: true });
+            }
+            if (!db.objectStoreNames.contains(META_STORE)) {
+              db.createObjectStore(META_STORE, { keyPath: "key" });
+            }
+          };
+
+          request.onsuccess = () => {
+            resolve(request.result);
+          };
+
+          request.onerror = () => {
+            reject(new Error("IndexedDB not available or blocked by browser settings."));
+          };
+        });
+      }
+
+      function openTransaction(storeNames, mode = "readonly") {
+        return new Promise((resolve, reject) => {
+          const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+          request.onsuccess = () => {
+            const db = request.result;
+            const tx = db.transaction(storeNames, mode);
+            resolve({ db, tx });
+          };
+
+          request.onerror = () => reject(new Error("Unable to open IndexedDB transaction."));
+        });
+      }
+
+      async function putStoreData(storeName, data) {
+        const { tx } = await openTransaction([storeName], "readwrite");
+        return new Promise((resolve, reject) => {
+          const store = tx.tx.objectStore(storeName);
+          const request = store.put(data);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(new Error("Failed to save store data."));
+        });
+      }
+
+      async function getStoreAll(storeName) {
+        const { tx } = await openTransaction([storeName], "readonly");
+        return new Promise((resolve, reject) => {
+          const store = tx.tx.objectStore(storeName);
+          const request = store.getAll();
+          request.onsuccess = () => resolve(request.result || []);
+          request.onerror = () => reject(new Error(`Could not load ${storeName}`));
+        });
+      }
+
+      async function deleteStoreItem(storeName, id) {
+        const { tx } = await openTransaction([storeName], "readwrite");
+        return new Promise((resolve, reject) => {
+          const store = tx.tx.objectStore(storeName);
+          const request = store.delete(id);
+          request.onsuccess = () => resolve(true);
+          request.onerror = () => reject(new Error(`Could not delete item from ${storeName}`));
+        });
+      }
+
+      async function clearStore(storeName) {
+        const { tx } = await openTransaction([storeName], "readwrite");
+        return new Promise((resolve, reject) => {
+          const store = tx.tx.objectStore(storeName);
+          const req = store.clear();
+          req.onsuccess = () => resolve(true);
+          req.onerror = () => reject(new Error(`Could not clear ${storeName}`));
+        });
+      }
+
+      async function loadAll() {
+        state.products = await getStoreAll(PRODUCT_STORE);
+        state.staff = await getStoreAll(STAFF_STORE);
+        state.logs = await getStoreAll(LOG_STORE);
+      }
+
+      function renderAll() {
+        renderStaffSelectors();
+        renderCatalog();
+        renderProductDropdowns();
+        renderAdminStaffList();
+        renderCountTab();
+      }
+
+      function createId(prefix = "id") {
+        return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2, 9)}`;
+      }
+
+      async function ensureDefaultStaff() {
+        const existing = await getStoreAll(STAFF_STORE);
+        if (!existing.length) {
+          const defaults = ["Clark", "Junrey", "Staff A", "Staff B"];
+          for (const name of defaults) {
+            await saveStaff({ name });
+          }
+        }
+        await loadAll();
+      }
+
+      async function saveStaff(data) {
+        const { name } = data;
+        if (!name || !name.trim()) {
+          showToast("Please enter a valid staff name.");
+          return;
+        }
+        const cleaned = name.trim();
+
+        const { tx } = await openTransaction([STAFF_STORE], "readwrite");
+        const store = tx.tx.objectStore(STAFF_STORE);
+
+        return new Promise((resolve, reject) => {
+          const existing = state.staff.find(s => s.name.toLowerCase() === cleaned.toLowerCase());
+          if (existing) {
+            showToast("This staff member already exists.");
+            resolve(false);
+            return;
+          }
+          const obj = { id: createId("staff"), name: cleaned };
+          const req = store.add(obj);
+          req.onsuccess = async () => {
+            await loadAll();
+            renderAll();
+            resolve(true);
+          };
+          req.onerror = () => reject(new Error("Unable to save staff"));
+        });
+      }
+
+      async function removeStaff(id) {
+        const target = state.staff.find(s => s.id === id);
+        if (!target) return;
+
+        if (state.staff.length <= 1) {
+          showToast("At least one staff member is required.");
+          return;
+        }
+
+        await deleteStoreItem(STAFF_STORE, id);
+        await loadAll();
+        renderAll();
+        showToast(`${target.name} removed.`);
+      }
+
+      async function addStaff(event) {
+        event.preventDefault();
+        const nameInput = document.getElementById("staffName");
+        const name = nameInput.value.trim();
+        if (!name) {
+          showToast("Enter a staff name.");
+          return;
+        }
+
+        await saveStaff({ name });
+        nameInput.value = "";
+      }
+
+      function renderStaffSelectors() {
+        const staffOptions = state.staff.map(s => `<option value="${s.id}">${s.name}</option>`).join("");
+        const selects = [
+          document.getElementById("productStaff"),
+          document.getElementById("inboundStaff"),
+          document.getElementById("outboundStaff"),
+          document.getElementById("countStaff")
+        ];
+
+        selects.forEach(select => {
+          const currentValue = select.value;
+          select.innerHTML = staffOptions || "<option value=''>No staff found</option>";
+          if (staffOptions) {
+            const fallbackValue = state.staff[0]?.id || "";
+            select.value = currentValue || fallbackValue;
+          } else {
+            select.value = "";
+          }
+        });
+      }
+
+      function renderProductDropdowns() {
+        const productOptions = state.products.map(p => {
+          const low = p.stock <= p.alertLevel ? " (Low)" : "";
+          return `<option value="${p.id}">${p.name}${low}</option>`;
+        }).join("");
+
+        const inbound = document.getElementById("inboundProduct");
+        const outbound = document.getElementById("outboundProduct");
+
+        inbound.innerHTML = productOptions || "<option value=''>No products found</option>";
+        outbound.innerHTML = productOptions || "<option value=''>No products found</option>";
+
+        if (state.products.length) {
+          inbound.value = state.products[0].id;
+          outbound.value = state.products[0].id;
+        }
+      }
+
+      function renderCatalog() {
+        const list = document.getElementById("productList");
+        const badge = document.getElementById("productCountBadge");
+
+        badge.textContent = state.products.length;
+
+        if (!state.products.length) {
+          list.innerHTML = `
+            <div class="rounded-xl border border-dashed border-slate-700 p-3 text-sm text-slate-400">
+              No products yet. Add your first item from the form above.
+            </div>
+          `;
+          return;
+        }
+
+        list.innerHTML = state.products
+          .slice()
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map(product => {
+            const low = product.stock <= product.alertLevel;
+            const badgeClass = low ? "pill-warning" : "pill-success";
+            const badgeText = low ? "Low stock" : "Healthy";
+
+            return `
+              <div class="card p-3 cursor-pointer" data-product-id="${product.id}">
+                <div class="flex items-start justify-between gap-2">
+                  <div>
+                    <div class="font-semibold">${product.name}</div>
+                    <div class="tiny text-slate-400">${product.category || "General"} • ${product.sku || "No SKU"}</div>
+                  </div>
+                  <span class="badge ${badgeClass}">${badgeText}</span>
+                </div>
+
+                <div class="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-300">
+                  <div class="rounded-lg bg-slate-900/60 p-2">
+                    <div class="text-slate-400">Stock</div>
+                    <div class="text-lg font-bold">${product.stock}</div>
+                  </div>
+                  <div class="rounded-lg bg-slate-900/60 p-2">
+                    <div class="text-slate-400">Alert</div>
+                    <div class="text-lg font-bold">${product.alertLevel}</div>
+                  </div>
+                </div>
+
+                <div class="mt-3 grid grid-cols-3 gap-2 text-[11px] text-slate-300">
+                  <div class="rounded-lg bg-slate-900/50 p-2">
+                    <div class="text-slate-400">Cost</div>
+                    <div>${currencyFormat(product.costPrice)}</div>
+                  </div>
+                  <div class="rounded-lg bg-slate-900/50 p-2">
+                    <div class="text-slate-400">Sell</div>
+                    <div>${currencyFormat(product.sellPrice)}</div>
+                  </div>
+                  <div class="rounded-lg bg-slate-900/50 p-2">
+                    <div class="text-slate-400">Batch</div>
+                    <div>${product.batchNo || "-"}</div>
+                  </div>
+                </div>
+
+                <div class="mt-3 flex gap-2">
+                  <button type="button" class="btn btn-gray text-xs flex-1 edit-product" data-product-id="${product.id}">Edit</button>
+                  <button type="button" class="btn btn-danger text-xs flex-1 delete-product" data-product-id="${product.id}">Delete</button>
+                </div>
+              </div>
+            `;
+          })
+          .join("");
+
+        document.querySelectorAll(".edit-product").forEach(btn => {
+          btn.addEventListener("click", (event) => {
+            const id = Number(event.currentTarget.dataset.productId);
+            const product = state.products.find(item => item.id === id);
+            if (!product) return;
+            fillProductForm(product);
+          });
+        });
+
+        document.querySelectorAll(".delete-product").forEach(btn => {
+          btn.addEventListener("click", async (event) => {
+            const id = Number(event.currentTarget.dataset.productId);
+            if (!confirm("Delete this product and all related records?")) return;
+            await deleteProduct(id);
+          });
+        });
+      }
+
+      function fillProductForm(product) {
+        document.getElementById("productId").value = product.id;
+        document.getElementById("productName").value = product.name || "";
+        document.getElementById("productCategory").value = product.category || "Production";
+        document.getElementById("productSku").value = product.sku || "";
+        document.getElementById("productCost").value = product.costPrice ?? 0;
+        document.getElementById("productSell").value = product.sellPrice ?? 0;
+        document.getElementById("productStock").value = product.stock ?? 0;
+        document.getElementById("productAlert").value = product.alertLevel ?? 0;
+
+        const staffSelect = document.getElementById("productStaff");
+        if (product.recordedById && [...staffSelect.options].some(o => o.value === String(product.recordedById))) {
+          staffSelect.value = String(product.recordedById);
+        } else {
+          staffSelect.value = staffSelect.options[0]?.value || "";
+        }
+
+        document.getElementById("cancelEditBtn").classList.remove("hidden");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+
+      function resetProductForm() {
+        document.getElementById("productForm").reset();
+        document.getElementById("productId").value = "";
+        document.getElementById("cancelEditBtn").classList.add("hidden");
+        const staffSelect = document.getElementById("productStaff");
+        if (staffSelect.options.length) {
+          staffSelect.value = staffSelect.options[0].value;
+        }
+      }
+
+      async function saveProduct(event) {
+        event.preventDefault();
+
+        const productId = document.getElementById("productId").value;
+        const name = document.getElementById("productName").value.trim();
+        const category = document.getElementById("productCategory").value;
+        const sku = document.getElementById("productSku").value.trim();
+        const costPrice = Number(document.getElementById("productCost").value || 0);
+        const sellPrice = Number(document.getElementById("productSell").value || 0);
+        const stock = Number(document.getElementById("productStock").value || 0);
+        const alertLevel = Number(document.getElementById("productAlert").value || 0);
+
+        const staffId = document.getElementById("productStaff").value;
+        if (!staffId) {
+          showToast("Please select a staff member.");
+          return;
+        }
+
+        if (!name) {
+          showToast("Please enter a product name.");
+          return;
+        }
+
+        const payload = {
+          id: productId ? Number(productId) : createId("product"),
+          name,
+          category,
+          sku,
+          costPrice,
+          sellPrice,
+          stock,
+          alertLevel,
+          recordedById: staffId,
+          updatedAt: new Date().toISOString()
+        };
+
+        const { tx } = await openTransaction([PRODUCT_STORE], "readwrite");
+        const store = tx.tx.objectStore(PRODUCT_STORE);
+
+        const req = productId ? store.put(payload) : store.add(payload);
+
+        req.onsuccess = async () => {
+          await loadAll();
+          renderAll();
+          resetProductForm();
+          const staffName = state.staff.find(s => s.id === staffId)?.name || "Staff";
+          showToast(`Product saved by ${staffName}.`);
+        };
+
+        req.onerror = () => {
+          showToast("Unable to save product.");
+        };
+      }
+
+      async function deleteProduct(productId) {
+        const existing = state.products.find(item => item.id === productId);
+        if (!existing) return;
+
+        const { tx } = await openTransaction([PRODUCT_STORE], "readwrite");
+        const store = tx.tx.objectStore(PRODUCT_STORE);
+        const req = store.delete(productId);
+
+        req.onsuccess = async () => {
+          await loadAll();
+          renderAll();
+          showToast(`${existing.name} deleted.`);
+        };
+
+        req.onerror = () => showToast("Unable to delete product.");
+      }
+
+      async function handleInboundSubmit(event) {
+        event.preventDefault();
+        const staffId = document.getElementById("inboundStaff").value;
+        const productId = document.getElementById("inboundProduct").value;
+        const batchQty = Number(document.getElementById("inboundQty").value || 0);
+        const batchNo = document.getElementById("inboundBatch").value.trim();
+        const expiry = document.getElementById("inboundExpiry").value;
+
+        if (!staffId) {
+          showToast("Select staff before submitting.");
+          return;
+        }
+        if (!productId) {
+          showToast("Select a product.");
+          return;
+        }
+        if (batchQty <= 0) {
+          showToast("Batch yield must be greater than zero.");
+          return;
+        }
+
+        const product = state.products.find(p => p.id === Number(productId));
+        if (!product) {
+          showToast("Selected product not found.");
+          return;
+        }
+
+        const updated = {
+          ...product,
+          stock: product.stock + batchQty,
+          batchNo: batchNo || product.batchNo || "",
+          expiryDate: expiry || product.expiryDate || "",
+          updatedAt: new Date().toISOString()
+        };
+
+        await saveProductRecord(updated);
+
+        const log = {
+          id: createId("log"),
+          type: "inbound",
+          staffId,
+          staffName: state.staff.find(s => s.id === staffId)?.name || "Unknown",
+          productId: product.id,
+          productName: product.name,
+          quantity: batchQty,
+          reason: "Production",
+          batchNo,
+          expiryDate: expiry,
+          note: `Inbound / production batch added`,
+          createdAt: new Date().toISOString()
+        };
+
+        await saveLog(log);
+
+        resetInboundForm();
+        await loadAll();
+        renderAll();
+
+        showToast(`${batchQty} units added to ${product.name}.`);
+      }
+
+      async function handleOutboundSubmit(event) {
+        event.preventDefault();
+        const staffId = document.getElementById("outboundStaff").value;
+        const productId = document.getElementById("outboundProduct").value;
+        const qty = Number(document.getElementById("outboundQty").value || 0);
+        const reason = document.getElementById("outboundReason").value;
+        const note = document.getElementById("outboundNote").value.trim();
+
+        if (!staffId) {
+          showToast("Select staff before submitting.");
+          return;
+        }
+        if (!productId) {
+          showToast("Select a product.");
+          return;
+        }
+        if (qty <= 0) {
+          showToast("Quantity must be greater than zero.");
+          return;
+        }
+
+        const product = state.products.find(p => p.id === Number(productId));
+        if (!product) {
+          showToast("Selected product not found.");
+          return;
+        }
+
+        if (product.stock < qty) {
+          showToast(`Not enough stock. Available: ${product.stock}.`);
+          return;
+        }
+
+        const updated = {
+          ...product,
+          stock: product.stock - qty,
+          updatedAt: new Date().toISOString()
+        };
+
+        await saveProductRecord(updated);
+
+        const log = {
+          id: createId("log"),
+          type: "outbound",
+          staffId,
+          staffName: state.staff.find(s => s.id === staffId)?.name || "Unknown",
+          productId: product.id,
+          productName: product.name,
+          quantity: qty,
+          reason,
+          note: note || "Manual adjustment",
+          createdAt: new Date().toISOString()
+        };
+
+        await saveLog(log);
+
+        document.getElementById("outboundForm").reset();
+        await loadAll();
+        renderAll();
+
+        showToast(`${qty} units deducted from ${product.name}.`);
+      }
+
+      async function saveProductRecord(product) {
+        const { tx } = await openTransaction([PRODUCT_STORE], "readwrite");
+        const store = tx.tx.objectStore(PRODUCT_STORE);
+
+        return new Promise((resolve, reject) => {
+          const req = store.put(product);
+          req.onsuccess = () => resolve(true);
+          req.onerror = () => reject(new Error("Unable to update product stock."));
+        });
+      }
+
+      async function saveLog(log) {
+        const { tx } = await openTransaction([LOG_STORE], "readwrite");
+        const store = tx.tx.objectStore(LOG_STORE);
+
+        return new Promise((resolve, reject) => {
+          const req = store.add(log);
+          req.onsuccess = () => resolve(true);
+          req.onerror = () => reject(new Error("Unable to save transaction log."));
+        });
+      }
+
+      function resetInboundForm() {
+        document.getElementById("inboundForm").reset();
+        const firstProduct = state.products[0];
+        const firstStaff = state.staff[0];
+        if (firstProduct && document.getElementById("inboundProduct")) {
+          document.getElementById("inboundProduct").value = String(firstProduct.id);
+        }
+        if (firstStaff && document.getElementById("inboundStaff")) {
+          document.getElementById("inboundStaff").value = String(firstStaff.id);
+        }
+      }
+
+      function renderCountTab() {
+        const list = document.getElementById("countList");
+        const products = state.products.slice().sort((a, b) => a.name.localeCompare(b.name));
+
+        if (!products.length) {
+          list.innerHTML = `
+            <div class="rounded-xl border border-dashed border-slate-700 p-3 text-sm text-slate-400">
+              No products available for stock count.
+            </div>
+          `;
+          return;
+        }
+
+        list.innerHTML = products.map(product => {
+          const physicalValue = product.physicalCount ?? product.stock;
+          return `
+            <div class="card p-3">
+              <div class="flex items-center justify-between gap-2 mb-2">
+                <div>
+                  <div class="font-medium">${product.name}</div>
+                  <div class="tiny text-slate-400">${product.category}</div>
+                </div>
+                <span class="badge ${product.stock <= product.alertLevel ? 'pill-warning' : 'pill-success'}">${product.stock} on hand</span>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2 text-xs">
+                <div class="rounded-lg bg-slate-900/60 p-2">
+                  <div class="text-slate-400">System</div>
+                  <div class="font-bold">${product.stock}</div>
+                </div>
+                <div class="rounded-lg bg-slate-900/60 p-2">
+                  <div class="text-slate-400">Physical</div>
+                  <input type="number" min="0" step="1" class="count-input w-full bg-transparent text-white text-right outline-none" data-product-id="${product.id}" value="${physicalValue}" />
+                </div>
+              </div>
+            </div>
+          `;
+        }).join("");
+
+        document.querySelectorAll(".count-input").forEach(input => {
+          input.addEventListener("input", (event) => {
+            const id = Number(event.target.dataset.productId);
+            const val = Number(event.target.value || 0);
+            const product = state.products.find(p => p.id === id);
+            if (!product) return;
+            product.physicalCount = val;
+          });
+        });
+      }
+
+      function generateVarianceReport() {
+        const countStaff = document.getElementById("countStaff").value;
+        if (!countStaff) {
+          showToast("Select a staff name before counting.");
+          return;
+        }
+
+        const varianceContent = document.getElementById("varianceContent");
+        const report = document.getElementById("varianceReport");
+
+        if (!state.products.length) {
+          report.classList.remove("hidden");
+          varianceContent.innerHTML = `
+            <div class="rounded-lg border border-slate-700 bg-slate-900/60 p-3 text-sm text-slate-400">
+              No products yet to count.
+            </div>
+          `;
+          return;
+        }
+
+        let totalVariance = 0;
+        const rows = state.products.map(product => {
+          const physical = Number(product.physicalCount ?? product.stock ?? 0);
+          const system = Number(product.stock ?? 0);
+          const variance = physical - system;
+          totalVariance += variance;
+          const statusClass = variance > 0 ? "text-emerald-300" : variance < 0 ? "text-red-300" : "text-slate-300";
+          return `
+            <div class="rounded-lg border border-slate-700 bg-slate-900/60 p-3">
+              <div class="flex items-center justify-between gap-2">
+                <div>
+                  <div class="font-medium">${product.name}</div>
+                  <div class="tiny text-slate-400">${product.category}</div>
+                </div>
+                <div class="${statusClass} font-semibold">${variance > 0 ? "+" : ""}${variance}</div>
+              </div>
+              <div class="mt-2 tiny text-slate-400 flex justify-between">
+                <span>System: ${system}</span>
+                <span>Physical: ${physical}</span>
+              </div>
+            </div>
+          `;
+        }).join("");
+
+        varianceContent.innerHTML = `
+          <div class="rounded-lg border border-slate-700 bg-slate-900/60 p-3">
+            <div class="flex justify-between text-sm">
+              <span class="text-slate-400">Counted by</span>
+              <span class="font-semibold">${state.staff.find(s => s.id === countStaff)?.name || "Unknown"}</span>
+            </div>
+            <div class="mt-2 flex justify-between text-sm">
+              <span class="text-slate-400">Total Variance</span>
+              <span class="${totalVariance === 0 ? 'text-slate-300' : totalVariance > 0 ? 'text-emerald-300' : 'text-red-300'} font-semibold">${totalVariance > 0 ? "+" : ""}${totalVariance}</span>
+            </div>
+          </div>
+          ${rows}
+        `;
+
+        report.classList.remove("hidden");
+
+        const log = {
+          id: createId("log"),
+          type: "count",
+          staffId: countStaff,
+          staffName: state.staff.find(s => s.id === countStaff)?.name || "Unknown",
+          quantity: totalVariance,
+          note: "Physical count variance report generated",
+          createdAt: new Date().toISOString()
+        };
+
+        saveLog(log).catch(() => {});
+      }
+
+      function renderAdminStaffList() {
+        const list = document.getElementById("staffList");
+        if (!state.staff.length) {
+          list.innerHTML = `<div class="text-sm text-slate-400">No staff yet.</div>`;
+          return;
+        }
+
+        list.innerHTML = state.staff
+          .map(staff => `
+            <div class="flex items-center justify-between rounded-xl border border-slate-700 bg-slate-900/60 px-3 py-2">
+              <span class="font-medium">${staff.name}</span>
+              <button type="button" class="btn btn-danger text-xs px-2 py-1 remove-staff" data-id="${staff.id}">Remove</button>
+            </div>
+          `)
+          .join("");
+
+        document.querySelectorAll(".remove-staff").forEach(btn => {
+          btn.addEventListener("click", async () => {
+            await removeStaff(btn.dataset.id);
+          });
+        });
+      }
+
+      async function exportBackup() {
+        const passphrase = prompt("Create a password to encrypt this backup file. Leave blank to use a simple fallback password.");
+        const backupPassword = passphrase === null ? null : (passphrase || "inventory-backup");
+        if (backupPassword === null) return;
+
+        const payload = {
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          products: state.products,
+          staff: state.staff,
+          logs: state.logs
+        };
+
+        const serialized = JSON.stringify(payload, null, 2);
+        const encrypted = await encryptString(serialized, backupPassword);
+        const blob = new Blob([encrypted], { type: "application/octet-stream" });
+        const href = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = href;
+        a.download = `inventory-backup-${new Date().toISOString().slice(0,10)}.enc`;
+        a.click();
+        URL.revokeObjectURL(href);
+        showToast("Backup file downloaded.");
+      }
+
+      async function handleImportBackup(event) {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const password = prompt("Enter the backup password used when exporting this file.");
+        if (password === null) {
+          event.target.value = "";
+          return;
+        }
+
+        try {
+          const text = await file.text();
+          const decrypted = await decryptString(text, password || "inventory-backup");
+          const data = JSON.parse(decrypted);
+
+          if (!data || !Array.isArray(data.products)) {
+            throw new Error("This file is not a valid inventory backup.");
+          }
+
+          await restoreBackup(data);
+          showToast("Backup restored successfully.");
+        } catch (error) {
+          showToast("Import failed. Check the file or password.");
+          console.error(error);
+        } finally {
+          event.target.value = "";
+        }
+      }
+
+      async function restoreBackup(data) {
+        const products = data.products || [];
+        const staff = data.staff || [];
+        const logs = data.logs || [];
+
+        await Promise.all([
+          clearStore(PRODUCT_STORE),
+          clearStore(STAFF_STORE),
+          clearStore(LOG_STORE)
+        ]);
+
+        const productStore = await openTransaction([PRODUCT_STORE], "readwrite");
+        const staffStore = await openTransaction([STAFF_STORE], "readwrite");
+        const logStore = await openTransaction([LOG_STORE], "readwrite");
+
+        const productTx = productStore.tx.objectStore(PRODUCT_STORE);
+        const staffTx = staffStore.tx.objectStore(STAFF_STORE);
+        const logTx = logStore.tx.objectStore(LOG_STORE);
+
+        for (const item of products) {
+          const record = {
+            ...item,
+            id: typeof item.id === "string" ? item.id : Number(item.id),
+            stock: Number(item.stock || 0),
+            alertLevel: Number(item.alertLevel || 0),
+            costPrice: Number(item.costPrice || 0),
+            sellPrice: Number(item.sellPrice || 0)
+          };
+          productTx.put(record);
+        }
+
+        for (const item of staff) {
+          const record = {
+            ...item,
+            id: typeof item.id === "string" ? item.id : Number(item.id),
+            name: String(item.name || "").trim()
+          };
+          if (record.name) staffTx.put(record);
+        }
+
+        for (const item of logs) {
+          const record = {
+            ...item,
+            id: typeof item.id === "string" ? item.id : Number(item.id)
+          };
+          logTx.put(record);
+        }
+
+        await loadAll();
+        renderAll();
+      }
+
+      async function encryptString(plainText, passphrase) {
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const keyMaterial = await crypto.subtle.importKey(
+          "raw",
+          new TextEncoder().encode(passphrase),
+          "PBKDF2",
+          false,
+          ["deriveKey"]
+        );
+
+        const key = await crypto.subtle.deriveKey(
+          {
+            name: "PBKDF2",
+            salt,
+            iterations: 250000,
+            hash: "SHA-256"
+          },
+          keyMaterial,
+          { name: "AES-GCM", length: 256 },
+          false,
+          ["encrypt"]
+        );
+
+        const encrypted = await crypto.subtle.encrypt(
+          { name: "AES-GCM", iv },
+          key,
+          new TextEncoder().encode(plainText)
+        );
+
+        return [
+          bytesToBase64(salt),
+          bytesToBase64(iv),
+          bytesToBase64(new Uint8Array(encrypted))
+        ].join(".");
+      }
+
+      async function decryptString(encryptedText, passphrase) {
+        const [saltB64, ivB64, dataB64] = encryptedText.split(".");
+        if (!saltB64 || !ivB64 || !dataB64) {
+          throw new Error("Invalid export format");
+        }
+
+        const salt = base64ToBytes(saltB64);
+        const iv = base64ToBytes(ivB64);
+        const cipherBytes = base64ToBytes(dataB64);
+
+        const keyMaterial = await crypto.subtle.importKey(
+          "raw",
+          new TextEncoder().encode(passphrase),
+          "PBKDF2",
+          false,
+          ["deriveKey"]
+        );
+
+        const key = await crypto.subtle.deriveKey(
+          {
+            name: "PBKDF2",
+            salt,
+            iterations: 250000,
+            hash: "SHA-256"
+          },
+          keyMaterial,
+          { name: "AES-GCM", length: 256 },
+          false,
+          ["decrypt"]
+        );
+
+        const decrypted = await crypto.subtle.decrypt(
+          { name: "AES-GCM", iv },
+          key,
+          cipherBytes
+        );
+
+        return new TextDecoder().decode(decrypted);
+      }
+
+      function bytesToBase64(bytes) {
+        let binary = "";
+        for (let i = 0; i < bytes.length; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        return btoa(binary);
+      }
+
+      function base64ToBytes(base64) {
+        const binaryString = atob(base64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        return bytes;
+      }
+
+      function currencyFormat(value) {
+        const num = Number(value || 0);
+        return new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency: "USD"
+        }).format(num);
+      }
+
+      function showToast(message) {
+        const toast = document.createElement("div");
+        toast.className = "fixed left-1/2 -translate-x-1/2 bottom-24 z-50 rounded-full bg-slate-800 border border-slate-600 px-3 py-2 text-xs text-slate-100 shadow-lg";
+        toast.textContent = message;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+          toast.remove();
+        }, 1800);
+      }
+    </script>
+  </body>
+</html>
